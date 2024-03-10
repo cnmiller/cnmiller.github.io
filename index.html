@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pooper Tools</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .container {
+            margin-bottom: 20px;
+        }
+
+        #charactersTableContainer {
+            display: none; /* Initially hide the container */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table, th, td {
+            border: 1px solid black;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        .select-cell {
+            width: 1%;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to WG Pooper Tools</h1>
+    <div class="container">
+        <label for="web3Token">Web3-Token: Header</label>
+        <input type="text" id="web3Token" name="web3Token">
+        <button onclick="getCharacters()">Get Characters</button>
+    </div>
+
+    <div class="container" id="charactersTableContainer">
+        <p>Select IDs:</p>
+        <!-- The table will be inserted here -->
+    </div>
+
+    <button onclick="makeRequests()">Claim & Restart Collecting</button>
+
+    <script>
+        function getCharacters() {
+            const web3Token = document.getElementById('web3Token').value.trim();
+            const baseUrl = 'https://hdfat7b8eg.execute-api.us-west-2.amazonaws.com/prod/tokens';
+
+            if (!web3Token) {
+                alert('Please enter the Web3 Token.');
+                return;
+            }
+
+            fetch(baseUrl, {
+                method: 'GET',
+                headers: {
+                    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                    'Accept': 'application/json',
+                    'Dnt': '1',
+                    'Sec-Ch-Ua-Mobile': '?0',
+                    'Web3-Token': web3Token,
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Sec-Ch-Ua-Platform': '"macOS"',
+                    'Origin': 'https://game.wolf.game',
+                    'Sec-Fetch-Site': 'cross-site',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Referer': 'https://game.wolf.game/',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                generateCharacterTable(data.characters);
+                document.getElementById('charactersTableContainer').style.display = 'block'; // Show the container
+            })
+            .catch(error => console.error('Error fetching characters:', error));
+        }
+
+        function generateCharacterTable(characters) {
+            const container = document.getElementById('charactersTableContainer');
+            container.innerHTML = '<p>Select IDs:</p>'; // Reset content and keep the title
+            const table = document.createElement('table');
+            table.setAttribute('id', 'charactersTable');
+            const headerRow = table.insertRow();
+            ['Select', 'ID', 'Shiny Count', 'Energy', 'Resource Type', 'Land ID', 'Community ID'].forEach(headerText => {
+                let headerCell = document.createElement('th');
+                headerCell.textContent = headerText;
+                headerRow.appendChild(headerCell);
+            });
+
+            characters.forEach(character => {
+                let row = table.insertRow();
+                
+                let selectCell = row.insertCell();
+                selectCell.classList.add('select-cell');
+                let checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `select-${character.id}`;
+                checkbox.value = character.id;
+                // Store coordinates in data attributes
+                if (character.action && character.action.data && character.action.data.coordinates) {
+                    checkbox.dataset.x = character.action.data.coordinates.x;
+                    checkbox.dataset.y = character.action.data.coordinates.y;
+                }
+                selectCell.appendChild(checkbox);
+
+                let idCell = row.insertCell();
+                idCell.textContent = character.id;
+
+                let shinyCountCell = row.insertCell();
+                shinyCountCell.textContent = character.shinyCount;
+
+                let energyCell = row.insertCell();
+                energyCell.textContent = character.energy;
+
+                let resourceTypeCell = row.insertCell();
+                resourceTypeCell.textContent = character.action && character.action.data ? character.action.data.resourceType : 'N/A';
+
+                let landIdCell = row.insertCell();
+                landIdCell.textContent = character.action && character.action.data ? character.action.data.landId : 'N/A';
+
+                let communityIdCell = row.insertCell();
+                communityIdCell.textContent = character.communityId;
+            });
+
+            container.appendChild(table);
+        }
+
+        function makeRequests() {
+            const web3Token = document.getElementById('web3Token').value.trim();
+            const baseUrl = 'https://hdfat7b8eg.execute-api.us-west-2.amazonaws.com/prod/character/';
+
+            if (!web3Token) {
+                alert('Please enter the Web3 Token.');
+                return;
+            }
+
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+            checkboxes.forEach(checkbox => {
+                const id = checkbox.value;
+                const stopCollectUrl = baseUrl + `${id}/stop-collect`;
+
+                fetch(stopCollectUrl, {
+                    method: 'POST',
+                    headers: getHeaders(web3Token)
+                })
+                .then(response => response.json())
+                .then(() => {
+                    const collectUrl = baseUrl + `${id}/collect`;
+                    // Retrieve coordinates from data attributes
+                    const xCoord = checkbox.dataset.x;
+                    const yCoord = checkbox.dataset.y;
+
+                    const collectBody = {
+                        resource: checkbox.closest('tr').cells[4].textContent,
+                        tile: { x: parseInt(xCoord, 10), y: parseInt(yCoord, 10) },
+                        gameStrategy: {
+                            roundConfigs: [
+                                { round: 1, cases: [{ outcomes: [], choice: 5 }] },
+                                { round: 2, cases: [{ outcomes: ["OVER"], choice: 5 }, { outcomes: ["UNDER"], choice: 5 }] },
+                                { round: 3, cases: [
+                                    { outcomes: ["OVER", "OVER"], choice: 5 },
+                                    { outcomes: ["UNDER", "OVER"], choice: 5 },
+                                    { outcomes: ["OVER", "UNDER"], choice: 5 },
+                                    { outcomes: ["UNDER", "UNDER"], choice: 5 }
+                                ]}
+                            ]
+                        },
+                        gameType: "WOLFS_GAMBIT"
+                    };
+
+                    fetch(collectUrl, {
+                        method: 'POST',
+                        headers: getHeaders(web3Token, JSON.stringify(collectBody).length),
+                        body: JSON.stringify(collectBody)
+                    })
+                    .then(response => response.json())
+                    .then(data => console.log(data))
+                    .catch(error => console.error('Error:', error));
+                })
+                .catch(error => console.error('Error:', error));
+            });
+        }
+
+        function getHeaders(web3Token, contentLength = 0) {
+            return {
+                'Content-Length': contentLength.toString(),
+                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                'Accept': 'application/json',
+                'Dnt': '1',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Web3-Token': web3Token,
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Sec-Ch-Ua-Platform': '"macOS"',
+                'Origin': 'https://game.wolf.game',
+                'Sec-Fetch-Site': 'cross-site',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Dest': 'empty',
+                'Referer': 'https://game.wolf.game/',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Content-Type': 'application/json'
+            };
+        }
+    </script>
+</body>
+</html>
