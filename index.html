@@ -3,57 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WG Pooper Tools</title>
+    <title>Pooper Tools</title>
     <style>
+        /* Basic styling for the body */
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
         }
 
+        /* Styling for container divs */
         .container {
             margin-bottom: 20px;
         }
 
+        /* Initially hide the table container */
         #charactersTableContainer {
-            display: none; /* Initially hide the container */
+            display: none;
         }
 
+        /* Table styling for full width and collapsed borders */
         table {
             width: 100%;
             border-collapse: collapse;
         }
 
+        /* Unified border styling for table, th, and td */
         table, th, td {
             border: 1px solid black;
         }
 
+        /* Padding and text alignment for table headers and cells */
         th, td {
             padding: 8px;
             text-align: left;
         }
 
+        /* Specific styling for select cells to control width and whitespace */
         .select-cell {
             width: 1%;
             white-space: nowrap;
         }
+
+        /* Cursor change to indicate clickable headers */
+        th {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
-    <h1>Welcome to WG Pooper Tools (pre-alpha)</h1>
+    <h1>Welcome to WG Pooper Tools</h1>
     <div class="container">
-        <label for="web3Token">Web3-Token: Header</label>
+        <label for="web3Token">Web3-Token Header:</label>
         <input type="text" id="web3Token" name="web3Token">
         <button onclick="getCharacters()">Get Characters</button>
     </div>
 
     <div class="container" id="charactersTableContainer">
         <p>Select IDs:</p>
-        <!-- The table will be inserted here -->
+        <!-- Table content will be dynamically inserted here -->
     </div>
 
     <button onclick="makeRequests()">Claim & Restart Collecting</button>
 
     <script>
+        let lastSortIndex = null;
+        let lastSortDirection = {};
+
         function getCharacters() {
             const web3Token = document.getElementById('web3Token').value.trim();
             const baseUrl = 'https://hdfat7b8eg.execute-api.us-west-2.amazonaws.com/prod/tokens';
@@ -92,13 +107,18 @@
 
         function generateCharacterTable(characters) {
             const container = document.getElementById('charactersTableContainer');
-            container.innerHTML = '<p>Select IDs:</p>'; // Reset content and keep the title
+            container.innerHTML = '<p>Select IDs:</p>';
             const table = document.createElement('table');
             table.setAttribute('id', 'charactersTable');
             const headerRow = table.insertRow();
-            ['Select', 'ID', 'Shiny Count', 'Energy', 'Resource Type', 'Land ID', 'Community ID'].forEach(headerText => {
+            const headers = ['Select', 'ID', 'Shiny Count', 'Energy', 'Resource Type', 'Land ID', 'Community ID'];
+            headers.forEach((headerText, index) => {
                 let headerCell = document.createElement('th');
                 headerCell.textContent = headerText;
+                headerCell.addEventListener('click', () => {
+                    let isNumericSort = index === 1 || index === 2 || index === 3;
+                    sortTableByColumn(table, index, isNumericSort);
+                });
                 headerRow.appendChild(headerCell);
             });
 
@@ -111,11 +131,6 @@
                 checkbox.type = 'checkbox';
                 checkbox.id = `select-${character.id}`;
                 checkbox.value = character.id;
-                // Store coordinates in data attributes
-                if (character.action && character.action.data && character.action.data.coordinates) {
-                    checkbox.dataset.x = character.action.data.coordinates.x;
-                    checkbox.dataset.y = character.action.data.coordinates.y;
-                }
                 selectCell.appendChild(checkbox);
 
                 let idCell = row.insertCell();
@@ -138,6 +153,30 @@
             });
 
             container.appendChild(table);
+        }
+
+        function sortTableByColumn(table, column, isNumericSort) {
+            let switching = true;
+            let dir = lastSortIndex !== column || lastSortDirection[column] === "desc" ? "asc" : "desc";
+            lastSortIndex = column;
+            lastSortDirection[column] = dir;
+
+            while (switching) {
+                switching = false;
+                let rows = table.rows;
+                for (let i = 1; i < rows.length - 1; i++) {
+                    let x = rows[i].getElementsByTagName("TD")[column];
+                    let y = rows[i + 1].getElementsByTagName("TD")[column];
+                    let xValue = isNumericSort ? parseFloat(x.innerHTML) || 0 : x.innerHTML.toLowerCase();
+                    let yValue = isNumericSort ? parseFloat(y.innerHTML) || 0 : y.innerHTML.toLowerCase();
+
+                    if ((dir === "asc" && xValue > yValue) || (dir === "desc" && xValue < yValue)) {
+                        rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                        switching = true;
+                        break;
+                    }
+                }
+            }
         }
 
         function makeRequests() {
